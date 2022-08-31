@@ -1,10 +1,8 @@
-import {Console} from 'console'
+import { Console } from 'console'
 import 'reflect-metadata'
-import {GitHub} from './github'
+import { GitHub } from './github'
+import fs from 'fs/promises'
 
-const OWNER = 'laurentsenta'
-const REPO = 'test-plans'
-const BRANCH = 'laurent-statistics-3008'
 const DEBUG = process.env.DEBUG === 'true'
 
 interface IWorkflowLine {
@@ -46,7 +44,7 @@ const debug = new Console(process.stderr)
 const DoneErr = new Error('done')
 
 // https://docs.github.com/en/rest/actions/workflow-runs#get-workflow-run-usage
-async function run(): Promise<void> {
+async function fetch(owner: string, repo: string, branch: string): Promise<void> {
   const gh = await GitHub.get()
 
   // TODO: should be a plugin or middleware
@@ -89,8 +87,8 @@ async function run(): Promise<void> {
 
   async function* allWorkflows() {
     for await (const response of allOf(actions.listRepoWorkflows, {
-      owner: OWNER,
-      repo: REPO
+      owner,
+      repo
     })) {
       for (const workflow of response.data) {
         yield workflow
@@ -100,9 +98,9 @@ async function run(): Promise<void> {
 
   async function* allRuns(workflowId: string | number) {
     for await (const response of allOf(actions.listWorkflowRuns, {
-      owner: OWNER,
-      repo: REPO,
-      branch: BRANCH,
+      owner,
+      repo,
+      branch,
       workflow_id: workflowId
     })) {
       for await (const workflowRun of response.data) {
@@ -123,8 +121,8 @@ async function run(): Promise<void> {
         )
 
         const usageRequest = await actions.getWorkflowRunUsage({
-          owner: OWNER,
-          repo: REPO,
+          owner,
+          repo,
           run_id: workflowRun.id
         })
 
@@ -161,8 +159,8 @@ async function run(): Promise<void> {
 
           for (const job of jobs) {
             const jobRequest = await actions.getJobForWorkflowRun({
-              owner: OWNER,
-              repo: REPO,
+              owner,
+              repo,
               run_id: workflowRun.id,
               job_id: job.job_id
             })
@@ -229,7 +227,32 @@ const durationInMS = (
   return Math.floor(yDate.getTime() - xDate.getTime())
 }
 
-run()
+async function main() {
+  const args = process.argv.slice(2)
+
+  switch (args[0]) {
+    case 'fetch':
+      const [owner, repo, branch] = args.slice(1)
+      return fetch(owner, repo, branch);
+    case 'merge':
+      return merge(...args.slice(1));
+    default:
+      throw new Error(`Unknown command ${args[0]}`)
+  }
+}
+
+const merge = async (...paths: string[]) => {
+  const files = await Promise.all(paths.map(p => fs.readFile(p, { encoding: 'utf8' })))
+  const jsons = files.map(f => JSON.parse(f))
+
+  const merged = jsons.reduce(
+    (acc, json) => [...acc, ...json], []
+  )
+
+  console.log(merged)
+}
+
+main()
   .then(() => process.exit(0))
   .catch(err => {
     console.error(err)

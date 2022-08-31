@@ -1,8 +1,18 @@
+OWNER=laurentsenta
+REPO=test-plans
+MAKEFLAGS += -j2
+
 all: out.csv
 	@echo "generated `cat ./out.csv | wc -l` lines"
 
-out.json: ./lib/main.js
-	node lib/main.js > ./out.json
+./out/20220830.json: ./lib/main.js
+	node lib/main.js fetch ${OWNER} ${REPO} laurent-statistics-3008 > ./out/20220830.json
+
+./out/20220825.json: ./lib/main.js
+	node lib/main.js fetch ${OWNER} ${REPO} laurent-statistics-2508 > ./out/20220825.json
+
+./out.json: ./out/20220830.json ./out/20220825.json
+	node lib/main.js merge ./out/*.json > ./out.json
 
 # ./lib/main.js: %.ts
 # 	npm run build
