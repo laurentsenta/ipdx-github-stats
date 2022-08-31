@@ -10,14 +10,17 @@ interface IWorkflowLine {
   workflowName: string
   headBranch: string | null
   headCommit: string | null
-  runId: number
-  status: string | null
-  conclusion: string | null
-  commit: string
-  createdAt: string
-  startedAt: string | null
-  updatedAt: string
-  totalWallClockTimeInMS: number | null
+  headCommitTimestamp: string | null,
+  headShacommit: string,
+  workflowRunId: number
+  workflowStatus: string | null
+  workflowConclusion: string | null
+  workflowCreatedAt: string
+  workflowStartedAt: string | null
+  workflowUpdatedAt: string
+  workflowDurationInMS: number | null
+  workflowTimeInQueueInMS: number | null
+  workflowTotalWallClockTimeInMS: number | null
 }
 
 interface IJobLine extends IWorkflowLine {
@@ -133,19 +136,20 @@ async function fetch(owner: string, repo: string, branch: string): Promise<void>
           workflowName: workflow.name,
           headBranch: workflowRun.head_branch,
           headCommit: workflowRun.head_commit?.id || null,
-          runId: workflowRun.id,
-          status: workflowRun.status,
-          conclusion: workflowRun.conclusion,
-          commit: workflowRun.head_sha,
-          createdAt: workflowRun.created_at,
-          startedAt: workflowRun.run_started_at || null,
-          updatedAt: workflow.updated_at,
-          durationInMS: usage.run_duration_ms,
-          timeInQueueInMS: durationInMS(
+          headCommitTimestamp: workflowRun.head_commit?.timestamp || null,
+          headShacommit: workflowRun.head_sha,
+          workflowRunId: workflowRun.id,
+          workflowStatus: workflowRun.status,
+          workflowConclusion: workflowRun.conclusion,
+          workflowCreatedAt: workflowRun.created_at,
+          workflowStartedAt: workflowRun.run_started_at || null,
+          workflowUpdatedAt: workflow.updated_at,
+          workflowDurationInMS: usage.run_duration_ms || null,
+          workflowTimeInQueueInMS: durationInMS(
             workflow.created_at,
             workflowRun.run_started_at
           ),
-          totalWallClockTimeInMS: durationInMS(
+          workflowTotalWallClockTimeInMS: durationInMS(
             workflow.created_at,
             workflow.updated_at
           )
@@ -249,7 +253,7 @@ const merge = async (...paths: string[]) => {
     (acc, json) => [...acc, ...json], []
   )
 
-  console.log(merged)
+  console.log(JSON.stringify(merged))
 }
 
 main()
