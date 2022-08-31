@@ -10,10 +10,14 @@ echo 'export DEBUG="true" > ./secrets.sh' # stops earlier
 ## Usage
 
 ```
-source ./secrets.sh && npm run build && npm run main 1>lines.jsonvi
+npm run build # or npm run build:watch
+source ./secrets.sh && make
+cat ./out.csv
 ```
 
 ## TODO
+
+- [ ] Fix jobDurationInMS is always empty
 
 This is an experiment to gather data and plot it.
 

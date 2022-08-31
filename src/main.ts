@@ -1,6 +1,6 @@
-import { Console } from 'console';
-import 'reflect-metadata';
-import { GitHub } from './github';
+import {Console} from 'console'
+import 'reflect-metadata'
+import {GitHub} from './github'
 
 const OWNER = 'laurentsenta'
 const REPO = 'test-plans'
@@ -8,33 +8,37 @@ const BRANCH = 'laurent-statistics-3008'
 const DEBUG = process.env.DEBUG === 'true'
 
 interface IWorkflowLine {
-  workflowId: number,
-  workflowName: string,
-  headBranch: string | null,
-  headCommit: string | null,
-  runId: number,
-  status: string | null,
-  conclusion: string | null,
-  commit: string,
-  createdAt: string,
+  workflowId: number
+  workflowName: string
+  headBranch: string | null
+  headCommit: string | null
+  runId: number
+  status: string | null
+  conclusion: string | null
+  commit: string
+  createdAt: string
   startedAt: string | null
+  updatedAt: string
+  totalWallClockTimeInMS: number | null
 }
 
 interface IJobLine extends IWorkflowLine {
-  os: string,
-  jobId: number,
-  jobDurationInMS: number | null,
-  jobStartedAt: string,
-  jobCompletedAt: string | null,
+  os: string
+  jobId: number
+  jobDurationInMS: number | null
+  jobStartedAt: string
+  jobCompletedAt: string | null
+  jobWallTimeDurationInMS: number | null
 }
 
 interface IJobStepLine extends IJobLine {
-  stepStatus: string,
-  stepConclusion: string | null,
-  stepName: string,
-  stepNumber: number,
-  stepStartedAt: string | null,
-  stepCompletedAt: string | null,
+  stepStatus: string
+  stepConclusion: string | null
+  stepName: string
+  stepNumber: number
+  stepStartedAt: string | null
+  stepCompletedAt: string | null
+  stepDurationInMS: number | null
 }
 
 const debug = new Console(process.stderr)
@@ -54,7 +58,7 @@ async function run(): Promise<void> {
   const stepLines: IJobStepLine[] = []
 
   // https://github.com/octokit/plugin-paginate-rest.js/#how-it-works
-  // TODO: implement and use 
+  // TODO: implement and use
   // async function* allOf<R extends OctokitTypes.RequestInterface>(q: R, parameters: Parameters<R>[0]): AsyncIterableIterator<NormalizeResponse<OctokitTypes.GetResponseTypeFromEndpointMethod<R>>> {
   //   for await (const response of gh.client.paginate.iterator(
   //     q, parameters
@@ -68,9 +72,9 @@ async function run(): Promise<void> {
   // }
 
   // TODO: fix, naive
-  const throwWhenDone = () => {
+  const throwWhenDone = (): void => {
     if (!DEBUG) {
-      return;
+      return
     }
     if (workflowLines.length > 10) {
       throw DoneErr
@@ -84,13 +88,10 @@ async function run(): Promise<void> {
   }
 
   async function* allWorkflows() {
-    for await (const response of allOf(
-      actions.listRepoWorkflows,
-      {
-        owner: OWNER,
-        repo: REPO,
-      },
-    )) {
+    for await (const response of allOf(actions.listRepoWorkflows, {
+      owner: OWNER,
+      repo: REPO
+    })) {
       for (const workflow of response.data) {
         yield workflow
       }
@@ -98,14 +99,12 @@ async function run(): Promise<void> {
   }
 
   async function* allRuns(workflowId: string | number) {
-    for await (const response of allOf(actions.listWorkflowRuns,
-      {
-        owner: OWNER,
-        repo: REPO,
-        branch: BRANCH,
-        workflow_id: workflowId,
-      })) {
-
+    for await (const response of allOf(actions.listWorkflowRuns, {
+      owner: OWNER,
+      repo: REPO,
+      branch: BRANCH,
+      workflow_id: workflowId
+    })) {
       for await (const workflowRun of response.data) {
         yield workflowRun
       }
@@ -113,22 +112,23 @@ async function run(): Promise<void> {
   }
 
   try {
-
     for await (const workflow of allWorkflows()) {
-      throwWhenDone();
+      throwWhenDone()
       debug.log(`Fetching workflow ${workflow.id} (${workflow.name})`)
 
       for await (const workflowRun of allRuns(workflow.id)) {
-        throwWhenDone();
-        debug.log(`Fetching workflow run ${workflowRun.id} (${workflowLines.length})`)
+        throwWhenDone()
+        debug.log(
+          `Fetching workflow run ${workflowRun.id} (${workflowLines.length})`
+        )
 
         const usageRequest = await actions.getWorkflowRunUsage({
           owner: OWNER,
           repo: REPO,
-          run_id: workflowRun.id,
+          run_id: workflowRun.id
         })
 
-        const usage = usageRequest.data;
+        const usage = usageRequest.data
 
         const workflowLine = {
           workflowId: workflow.id,
@@ -141,13 +141,22 @@ async function run(): Promise<void> {
           commit: workflowRun.head_sha,
           createdAt: workflowRun.created_at,
           startedAt: workflowRun.run_started_at || null,
+          updatedAt: workflow.updated_at,
           durationInMS: usage.run_duration_ms,
+          timeInQueueInMS: durationInMS(
+            workflow.created_at,
+            workflowRun.run_started_at
+          ),
+          totalWallClockTimeInMS: durationInMS(
+            workflow.created_at,
+            workflow.updated_at
+          )
         }
-        workflowLines.push(workflowLine);
+        workflowLines.push(workflowLine)
 
         for (const key of Object.keys(usage.billable)) {
-          throwWhenDone();
-          const os = key as (keyof typeof usage.billable)
+          throwWhenDone()
+          const os = key as keyof typeof usage.billable
           const jobs = usage.billable[os]!.job_runs || []
 
           for (const job of jobs) {
@@ -155,10 +164,10 @@ async function run(): Promise<void> {
               owner: OWNER,
               repo: REPO,
               run_id: workflowRun.id,
-              job_id: job.job_id,
+              job_id: job.job_id
             })
 
-            const jobData = jobRequest.data;
+            const jobData = jobRequest.data
 
             const jobLine = {
               ...workflowLine,
@@ -168,11 +177,16 @@ async function run(): Promise<void> {
               jobName: jobData.name,
               jobStartedAt: jobData.started_at,
               jobCompletedAt: jobData.completed_at || null,
+              jobWallTimeDurationInMS: durationInMS(
+                jobData.started_at,
+                jobData.completed_at
+              )
             }
             jobLines.push(jobLine)
 
-            for (const step of (jobData.steps || [])) {
-              throwWhenDone();
+            for (const step of jobData.steps || []) {
+              throwWhenDone()
+
               const stepLine = {
                 ...jobLine,
                 stepStatus: step.status,
@@ -181,6 +195,10 @@ async function run(): Promise<void> {
                 stepNumber: step.number,
                 stepStartedAt: step.started_at || null,
                 stepCompletedAt: step.completed_at || null,
+                stepDurationInMS: durationInMS(
+                  step.started_at,
+                  step.completed_at
+                )
               }
               stepLines.push(stepLine)
             }
@@ -195,13 +213,25 @@ async function run(): Promise<void> {
       throw e
     }
   } finally {
-    console.log(JSON.stringify(stepLines));
+    console.log(JSON.stringify(stepLines))
   }
+}
+
+const durationInMS = (
+  x: string | undefined | null,
+  y: string | undefined | null
+): number | null => {
+  if (!x || !y) {
+    return null
+  }
+  const xDate = new Date(x)
+  const yDate = new Date(y)
+  return Math.floor(yDate.getTime() - xDate.getTime())
 }
 
 run()
   .then(() => process.exit(0))
-  .catch((err) => {
+  .catch(err => {
     console.error(err)
     process.exit(1)
-  });
+  })
